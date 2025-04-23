@@ -1,0 +1,53 @@
+blueprint_name: g2
+
+vars:
+  project_id: <project id>
+  deployment_name: g2
+  region: us-central1
+  zone: us-central1-a
+  instance_image:
+    name: slurm-gcp-6-3-hpc-rocky-linux-8
+    disk_size: 50
+  
+deployment_groups:
+- group: primary
+  modules:
+  - id: network
+    source: modules/network/vpc
+
+  - id: homefs
+    source: community/modules/file-system/nfs-server
+    use: [network]
+    settings:
+      local_mounts: [/home]
+      disk_size: 50
+
+  - id: ns_g2_spot
+    source: community/modules/compute/schedmd-slurm-gcp-v6-nodeset
+    use: [network]
+    settings:
+      node_count_dynamic_max: 1
+      #g2-standard-24 provides 2 x Nvidia L4
+      machine_type: g2-standard-24
+      enable_placement: false
+      allow_automatic_updates: false
+      preemptible: true
+
+  - id: part_g2_spot
+    source: community/modules/compute/schedmd-slurm-gcp-v6-partition
+    use:
+    - ns_g2_spot
+    settings:
+      partition_name: g2spot
+      exclusive: false
+      is_default: true
+
+  - id: slurm_controller
+    source: community/modules/scheduler/schedmd-slurm-gcp-v6-controller
+    use:
+    - network
+    - part_g2_spot
+    - homefs
+    settings:
+      enable_controller_public_ips: false
+      
